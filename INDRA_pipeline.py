@@ -1,3 +1,19 @@
+import os
+import glob
+import pandas as pd
+from Bio import Entrez
+from indra import literature
+from indra.sources import reach
+from indra.tools import assemble_corpus as ac
+from indra.statements import statements
+from indra.statements import RegulateAmount, RegulateActivity
+from indra.assemblers.cx import CxAssembler
+from indra.databases import ndex_client
+
+
+# Get the home folder on any platform
+HOME = os.path.expanduser('~')
+
 ### PUBMED SEARCH INFORMATION:
 chemical = ''
 date_from = "1900/01/01" 
@@ -5,7 +21,6 @@ date_to = "2020/03/01"
 ###
 
 ### USER INFORMATION:
-user = '' # Windows user name
 entrez_email = '' # Email used at Entrez account
 ndex_cred = {'user': '', 'password': ''} # Ndex credentials
 
@@ -15,23 +30,25 @@ ndex_cred = {'user': '', 'password': ''} # Ndex credentials
     - folder 'chemicalname' at Desktop\\pmids
     - folders 'full_pmids_lists' and 'json_files' at Desktop\\pmids\\chemicalname
     - one folder for each query at Desktop\\pmids\\chemicalname"""
-import os
 
 queries = []
-for n in list(range(1,8)):
-    queries.append('pmids\\' + chemical + '\\query' + str(n))
-root_path = 'C:\\Users\\' + user + '\\Desktop\\'
-folders = ['pmids', ('pmids\\' + chemical), ('pmids\\' + chemical + '\\full_pmids_lists'), ('pmids\\' + chemical + '\\json_files')] + queries
+for n in list(range(1, 8)):
+    path = os.path.join('pmids', chemical, 'query' + str(n))
+    queries.append(path)
+root_path = os.path.join(HOME, 'Desktop')
+folders = ['pmids',
+           os.path.join('pmids', chemical),
+           os.path.join('pmids', chemical, 'full_pmids_lists'),
+           os.path.join('pmids', chemical, 'json_files')] + queries
 
 for folder in folders: 
     if not os.path.exists(os.path.join(root_path, folder)):
         os.makedirs(os.path.join(root_path, folder))
-        
-chemical_folder = root_path + 'pmids\\' + chemical + '\\'
+
+chemical_folder = os.path.join(root_path, 'pmids', chemical)
 
 #%% PMIDs LISTS RETRIVAL 
 """Pubmed search for each query"""
-from Bio import Entrez
 
 def search(query):
     Entrez.email = entrez_email
@@ -55,61 +72,56 @@ terms.append(chemical + '[Title] AND ("Hormones, Hormone Substitutes, and Hormon
 terms.append(chemical + '[Title] AND ("Cell Transformation, Neoplastic"[MeSH] OR "Cell Proliferation"[MeSH] OR apoptosis OR "necrosis"[MeSH] OR "DNA Replication"[MeSH] OR "Cell Cycle"[MeSH] OR brdu OR thymidine OR angiogenesis)' + date)
 
 number = []
-for i in range(0,7):
-    query = search(terms[i])
-    l = []
-    for q in query["IdList"]:
-        l.append(str(q))
+for i, term in enumerate(terms):
+    query = search(term)
+    l = [str(q) for q in query["IdList"]]
     number.append(len(l))
-    with open(root_path + 'pmids\\' + chemical + '\\full_pmids_lists\\pubmed_result_query' + str(i+1) + '.txt', "w") as f:
-        for x in l:
-            f.write(x + "\n")
-            
+    fname = 'pubmed_result_query' + str(i+1) + '.txt'
+    path = os.path.join(root_path, 'pmids', 'chemical', 'full_pmids_lists', fname)
+    with open(fname, "w") as f:
+        f.write('\n'.join(l))
+
 # GENERATE TABLE
 """"Saves an excel table with the search terms and the number of pmids for each query"""
-import pandas as pd
 
-qn = []
-for n in list(range(1,8)):
-    qn.append('query' + str(n))
+qn = ['query%d' % n for n in range(1, 8)]
 
 data = {'Query': qn, 'Search Terms': terms, '# pmids': number}
 
 df = pd.DataFrame(data)
-df.to_excel(chemical_folder + "queries " + chemical + " PubMed.xlsx", index = False)
+fname = 'queries' + chemical + ' PubMed.xlsx'
+df.to_excel(os.path.join(chemical_folder, fname), index=False)
 
 #%% GENERATION OF RAW INDRA STATEMENTS
-from indra import literature
-from indra.sources import reach
-from indra.tools import assemble_corpus as ac
-
-for i in range(0,7):
-    query = qn[i]
+for i, query in enumerate(qn):
     print('Processing %s' % query)
     # Retrieve article text from pmids
-    paper_contents = {} 
-    with open(chemical_folder + 'full_pmids_lists\\pubmed_result_' + query + '.txt') as art_pmid:
-            for pmid in art_pmid:
-                print(pmid.rstrip())
-                try:
-                    content, content_type = literature.get_full_text(pmid.rstrip(), 'pmid')
-                    paper_contents[pmid] = (content, content_type)
-                except AttributeError:
-                    content = literature.pubmed_client.get_abstract(pmid.rstrip(), prepend_title=True)
-                    content_type = 'abstract'
-                    paper_contents[pmid] = (content, content_type)
-                    print('Attribute Error')
-                    
+    paper_contents = {}
+    fname = os.path.join(chemical_folder, 'full_pmids_lists',
+                         'pubmed_result_' + query + '.txt')
+    with open(fname) as art_pmid:
+        for pmid in art_pmid:
+            pmid = pmid.strip()
+            print(pmid)
+            try:
+                content, content_type = literature.get_full_text(pmid, 'pmid')
+                paper_contents[pmid] = (content, content_type)
+            except AttributeError:
+                content = literature.pubmed_client.get_abstract(pmid, prepend_title=True)
+                content_type = 'abstract'
+                paper_contents[pmid] = (content, content_type)
+                print('Attribute Error')
+
     # Save the text of all retrieved articles in files (text)
     # Generate statements (REACH)
     read_offline = True
     literature_stmts = []
-    
+
     for pmid, (content, content_type) in paper_contents.items():
         rp = None
         literature_stmts = []
         print('Reading %s' % pmid)
-        if content_type != None:
+        if content_type is not None:
             if content_type == 'abstract':
                 print('abstract')
                 rp = reach.api.process_text(content, citation=pmid, offline=read_offline)
@@ -125,45 +137,39 @@ for i in range(0,7):
             if rp is not None:
                 print((rp))
                 literature_stmts = rp.statements
-                fr = (chemical_folder + query + '\\' + str(pmid.rstrip()) + '.pickle')
+                fr = os.path.join(chemical_folder, query, pmid + '.pickle')
                 ac.dump_statements(literature_stmts, fr, protocol=4)
-                
+
+
 #%% GENERATE NETWORK
-from itertools import chain
-
-from indra.statements import statements
-from indra.statements import RegulateAmount, RegulateActivity
-from indra.assemblers.cx import CxAssembler 
-from indra.databases import ndex_client
-
-
-for i in list(range(0,7)):
-    query = qn[i]
+for i, query in enumerate(qn):
     stmts = []
     # Load statements from processed pmids
-    folder = 'C:\\Users\\' + user + '\\Desktop\\pmids\\' + chemical + '\\' + query + '\\'
-    for file in os.listdir(folder):
-        if file.endswith(".pickle"):
-            fr = open(os.path.join(folder, file), 'rb')
-            stmts.append(ac.load_statements(os.path.join(folder, file), as_dict=False))
-    stmts = list(chain.from_iterable(stmts))
+    folder = os.path.join(root_path, 'pmids', chemical, query)
+    for file in glob.glob(os.path.join(folder, '*.pickle')):
+        fr = open(os.path.join(folder, file), 'rb')
+        stmts += ac.load_statements(os.path.join(folder, file), as_dict=False)
 
-
-    # Process statements and preassembly  
+    # Process statements and run preassembly
     stmts = ac.filter_no_hypothesis(stmts)  # Optional: filter out hypothetical statements
     stmts = ac.map_grounding(stmts)         # Map grounding
     stmts = ac.filter_grounded_only(stmts)  # Optional: filter out ungrounded agents
     stmts = ac.map_sequence(stmts)          # Map sequence
-    
-    stmts_filtered = [s for s in stmts if (not isinstance(s, (RegulateAmount, RegulateActivity)) or s.obj is not None)]
-    preassembled_stmts = ac.run_preassembly(stmts_filtered, return_toplevel=False) # Run preassembly 
-    
-    #Save preassembled statements in a json file
-    f = statements.stmts_to_json_file(preassembled_stmts, 'C:\\Users\\' + user + '\\Desktop\\pmids\\' + chemical + '\\json_files\\preassembled_' + chemical + '_' + query + '.json')
-    
+
+    stmts_filtered = [s for s in stmts if
+                      (not isinstance(s, (RegulateAmount, RegulateActivity))
+                       or s.obj is not None)]
+    preassembled_stmts = ac.run_preassembly(stmts_filtered,
+                                            return_toplevel=False) # Run preassembly
+
+    # Save preassembled statements in a json file
+    fname = os.path.join(root_path, 'pmids', chemical, 'json_files',
+                         'preassembled_' + chemical + '_' + query + '.json')
+    statements.stmts_to_json_file(preassembled_stmts, fname)
+
     # Assemble statements and generate network
-    cxa = CxAssembler(preassembled_stmts, network_name = chemical + '_' + query)
+    cxa = CxAssembler(preassembled_stmts, network_name=chemical + '_' + query)
     cx_str = cxa.make_model()
-    network_id = ndex_client.create_network(cx_str, ndex_cred) 
-    
+    network_id = ndex_client.create_network(cx_str, ndex_cred)
+
     print(query + ': ' + network_id)
