@@ -11,38 +11,11 @@ from indra.statements import RegulateAmount, RegulateActivity
 from indra.assemblers.cx import CxAssembler
 from indra.databases import ndex_client
 
-
-### USER INFORMATION
-entrez_email = ''  # Email used at Entrez account
-ndex_cred = {'user': '', 'password': ''}  # Ndex credentials
-
-### PUBMED SEARCH INFORMATION:
-chemical = ''
-date_from = "1900/01/01" 
-date_to = "2020/03/01" 
-###
-
 # Get the home folder on any platform
 HOME = os.path.expanduser('~')
 root_path = os.path.join(HOME, 'Desktop')
-chemical_folder = os.path.join(root_path, 'pmids', chemical)
 
 
-date = ' AND (' + date_from + '[PDat] : ' + date_to + '[PDat])'
-
-query_patterns = [
-    '[Title] AND ("pharmacokinetics"[MeSH Terms] OR "pharmacokinetics"[Subheading] OR "absorption"[MeSH Terms] OR "distribution"[Title] OR "excretion"[All Fields])',
-    '[Title] AND ("Mutation"[MeSH] OR "Cytogenetic Analysis"[MeSH] OR "Mutagens"[MeSH] OR "Oncogenes"[MeSH] OR "Genetic Processes"[MeSH] OR "genomic instability"[MeSH] OR chromosom* OR clastogen* OR "genetic toxicology" OR "strand break" OR "unscheduled DNA synthesis" OR "DNA damage" OR "DNA adducts" OR "SCE" OR "chromatid" OR micronucle* OR mutagen* OR "DNA repair" OR "UDS" OR "DNA fragmentation" OR "DNA cleavage")',
-    '[Title] AND ("rna"[MeSH] OR "epigenesis, genetic"[MesH] OR rna OR "rna, messenger"[MeSH] OR "rna" OR "messenger rna" OR mrna OR "histones"[MeSH] OR histones OR epigenetic OR miRNA OR methylation)',
-    '[Title] AND ("reactive oxygen species"[MeSH Terms] OR "reactive oxygen species"[All Fields] OR "oxygen radicals"[All Fields] OR "oxidative stress"[MeSH Terms] OR "oxidative"[All Fields] OR "oxidative stress"[All Fields] OR "free radicals"[All Fields])',
-    '[Title] AND (inflamm* OR immun* OR chemokine OR cytokine OR leukocyte OR white blood cell)',
-    '[Title] AND ("Hormones, Hormone Substitutes, and Hormone Antagonists"[MeSH] OR "Endocrine Disruptors"[MeSH] OR "Thyroid Hormones"[MeSH] OR "Estrogens"[MeSH] OR "Progesterone"[MeSH] OR "Receptors, Estrogen"[MeSH] OR "Receptors, Androgen"[MeSH] OR "Receptors, Progesterone"[MeSH] OR "Receptors, Thyroid Hormone"[MeSH] OR "Receptors, Aryl Hydrocarbon"[MeSH] OR "Peroxisome Proliferator-Activated Receptors"[MeSH] OR "constitutive androstane receptor"[Supplementary Concept] OR "farnesoid X-activated receptor"[Supplementary Concept] OR "liver X receptor"[Supplementary Concept] OR "Retinoid X Receptors"[MeSH])',
-    '[Title] AND ("Cell Transformation, Neoplastic"[MeSH] OR "Cell Proliferation"[MeSH] OR apoptosis OR "necrosis"[MeSH] OR "DNA Replication"[MeSH] OR "Cell Cycle"[MeSH] OR brdu OR thymidine OR angiogenesis)',
-]
-terms = ['%s%s%s' % (chemical, qpattern, date) for qpattern in query_patterns]
-
-
-#%% CREATION OF FOLDERS
 def make_folders(chemical, terms):
     """Create all folders that we will put files into
         - folder 'pmids' at Desktop
@@ -64,7 +37,7 @@ def make_folders(chemical, terms):
             os.makedirs(os.path.join(root_path, folder))
 
 
-def search(query):
+def search(query, entrez_email):
     """Run a specific PubMed query with BioPython to get PMIDs"""
     Entrez.email = entrez_email
     handle = Entrez.esearch(db='pubmed', 
@@ -76,11 +49,11 @@ def search(query):
     return results
 
 
-def search_pmids(terms):
+def search_pmids(terms, entrez_email, chemical):
     """Return PMIDs for a list of search terms."""
     number = []
     for i, term in enumerate(terms):
-        query = search(term)
+        query = search(term, entrez_email)
         l = [str(q) for q in query["IdList"]]
         number.append(len(l))
         fname = 'pubmed_result_query' + str(i+1) + '.txt'
@@ -133,7 +106,7 @@ def read_content(pmid, content, content_type, query):
             ac.dump_statements(rp.statements, fr, protocol=4)
 
 
-def load_query_statements(query):
+def load_query_statements(query, chemical):
     stmts = []
     # Load statements from processed pmids
     folder = os.path.join(root_path, 'pmids', chemical, query)
@@ -158,18 +131,70 @@ def assemble_statements(stmts):
     return preassembled_stmts
 
 
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('chemical', required=True,
+                        help='The name of the chemical to query for')
+    parser.add_argument('date_from', required=False,
+                        help='The starting date from which to search'
+                             'for PMIDs',
+                        default='1900/01/01')
+    parser.add_argument('date_to', required=False,
+                        help='The end date up to which to search'
+                             'for PMIDs',
+                        default='2020/03/01')
+    parser.add_argument('entrez_email', required=False,
+                        help='The email to use when querying PubMed '
+                             'via BioPython.',
+                        default='')
+    parser.add_argument('ndex_user', required=False,
+                        help='The user name to use if uploading networks '
+                             'to NDEx',
+                        default=None)
+    parser.add_argument('ndex_password', required=False,
+                        help='The password to use if uploading networks '
+                             'to NDEx',
+                        default=None)
+    args = parser.parse_args()
+    return args
+
+
+query_patterns = [
+    '[Title] AND ("pharmacokinetics"[MeSH Terms] OR "pharmacokinetics"[Subheading] OR "absorption"[MeSH Terms] OR "distribution"[Title] OR "excretion"[All Fields])',
+    '[Title] AND ("Mutation"[MeSH] OR "Cytogenetic Analysis"[MeSH] OR "Mutagens"[MeSH] OR "Oncogenes"[MeSH] OR "Genetic Processes"[MeSH] OR "genomic instability"[MeSH] OR chromosom* OR clastogen* OR "genetic toxicology" OR "strand break" OR "unscheduled DNA synthesis" OR "DNA damage" OR "DNA adducts" OR "SCE" OR "chromatid" OR micronucle* OR mutagen* OR "DNA repair" OR "UDS" OR "DNA fragmentation" OR "DNA cleavage")',
+    '[Title] AND ("rna"[MeSH] OR "epigenesis, genetic"[MesH] OR rna OR "rna, messenger"[MeSH] OR "rna" OR "messenger rna" OR mrna OR "histones"[MeSH] OR histones OR epigenetic OR miRNA OR methylation)',
+    '[Title] AND ("reactive oxygen species"[MeSH Terms] OR "reactive oxygen species"[All Fields] OR "oxygen radicals"[All Fields] OR "oxidative stress"[MeSH Terms] OR "oxidative"[All Fields] OR "oxidative stress"[All Fields] OR "free radicals"[All Fields])',
+    '[Title] AND (inflamm* OR immun* OR chemokine OR cytokine OR leukocyte OR white blood cell)',
+    '[Title] AND ("Hormones, Hormone Substitutes, and Hormone Antagonists"[MeSH] OR "Endocrine Disruptors"[MeSH] OR "Thyroid Hormones"[MeSH] OR "Estrogens"[MeSH] OR "Progesterone"[MeSH] OR "Receptors, Estrogen"[MeSH] OR "Receptors, Androgen"[MeSH] OR "Receptors, Progesterone"[MeSH] OR "Receptors, Thyroid Hormone"[MeSH] OR "Receptors, Aryl Hydrocarbon"[MeSH] OR "Peroxisome Proliferator-Activated Receptors"[MeSH] OR "constitutive androstane receptor"[Supplementary Concept] OR "farnesoid X-activated receptor"[Supplementary Concept] OR "liver X receptor"[Supplementary Concept] OR "Retinoid X Receptors"[MeSH])',
+    '[Title] AND ("Cell Transformation, Neoplastic"[MeSH] OR "Cell Proliferation"[MeSH] OR apoptosis OR "necrosis"[MeSH] OR "DNA Replication"[MeSH] OR "Cell Cycle"[MeSH] OR brdu OR thymidine OR angiogenesis)',
+]
+
+
 if __name__ == '__main__':
+    # Parser arguments
+    args = parse_arguments()
+
+    chemical_folder = os.path.join(root_path, 'pmids', args.chemical)
+
+    # Date for PubMed search
+    date = ' AND (' + args.date_from + '[PDat] : ' + args.date_to + '[PDat])'
+
+    # Specific search terms
+    terms = ['%s%s%s' % (args.chemical, qpattern, date) for qpattern in
+             query_patterns]
+
     # Prepare folders
-    make_folders(chemical, terms)
+    make_folders(args.chemical, terms)
 
     # GENERATE TABLE
     # Saves an excel table with the search terms and the number
     # of pmids for each query
-    number = search_pmids(terms)
+    number = search_pmids(terms, args.entrez_email, args.chemical)
     qn = ['query%d' % (n+1) for n in range(len(terms))]
     data = {'Query': qn, 'Search Terms': terms, '# pmids': number}
     df = pd.DataFrame(data)
-    fname = 'queries' + chemical + ' PubMed.xlsx'
+    fname = 'queries' + args.chemical + ' PubMed.xlsx'
     df.to_excel(os.path.join(chemical_folder, fname), index=False)
 
     # GENERATE RAW INDRA STATEMENTS
@@ -189,18 +214,20 @@ if __name__ == '__main__':
         for pmid, (content, content_type) in paper_contents.items():
             read_content(pmid, content, content_type, query)
 
-    # GENERATE NETWORK
+    # ASSEMBLE STATEMENTS AND GENERATE NETWORK
     for i, query in enumerate(qn):
-        stmts = load_query_statements(query)
+        stmts = load_query_statements(query, args.chemical)
         preassembled_stmts = assemble_statements(stmts)
         # Save preassembled statements in a json file
-        fname = os.path.join(root_path, 'pmids', chemical, 'json_files',
-                             'preassembled_' + chemical + '_' + query + '.json')
+        fname = os.path.join(root_path, 'pmids', args.chemical, 'json_files',
+                             'preassembled_' + args.chemical + '_' + query + '.json')
         statements.stmts_to_json_file(preassembled_stmts, fname)
 
         # Assemble statements and generate network
-        cxa = CxAssembler(preassembled_stmts, network_name=chemical + '_' + query)
+        cxa = CxAssembler(preassembled_stmts, network_name=args.chemical + '_' + query)
         cx_str = cxa.make_model()
-        network_id = ndex_client.create_network(cx_str, ndex_cred)
+        network_id = \
+            ndex_client.create_network(cx_str, {'user': args.ndex_user,
+                                                'password': args.ndex_password})
 
         print(query + ': ' + network_id)
