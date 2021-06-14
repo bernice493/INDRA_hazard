@@ -9,7 +9,29 @@ pip install -r requirements.txt
 Then edit the script to set a `chemical`, as well as credentials for NDEx
 in case the networks are to be uploaded there. Then run the script as
 ```
-python INDRA_pipeline.py
+python INDRA_pipeline.py [chemical]
+```
+The script takes the name of a chemical as its first argument and takes
+a number of other optional arguments as follows
+
+```
+usage: INDRA_pipeline.py [-h] [--date_from DATE_FROM] [--date_to DATE_TO] [--entrez_email ENTREZ_EMAIL] [--ndex_user NDEX_USER] [--ndex_password NDEX_PASSWORD]
+                         chemical
+
+positional arguments:
+  chemical              The name of the chemical to query for
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --date_from DATE_FROM
+                        The starting date from which to searchfor PMIDs
+  --date_to DATE_TO     The end date up to which to searchfor PMIDs
+  --entrez_email ENTREZ_EMAIL
+                        The email to use when querying PubMed via BioPython.
+  --ndex_user NDEX_USER
+                        The user name to use if uploading networks to NDEx
+  --ndex_password NDEX_PASSWORD
+                        The password to use if uploading networks to NDEx
 ```
 
 ## Workflow and results

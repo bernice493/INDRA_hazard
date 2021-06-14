@@ -134,25 +134,25 @@ def assemble_statements(stmts):
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser()
-    parser.add_argument('chemical', required=True,
+    parser.add_argument('chemical',
                         help='The name of the chemical to query for')
-    parser.add_argument('date_from', required=False,
+    parser.add_argument('--date_from', required=False,
                         help='The starting date from which to search'
                              'for PMIDs',
                         default='1900/01/01')
-    parser.add_argument('date_to', required=False,
+    parser.add_argument('--date_to', required=False,
                         help='The end date up to which to search'
                              'for PMIDs',
                         default='2020/03/01')
-    parser.add_argument('entrez_email', required=False,
+    parser.add_argument('--entrez_email', required=False,
                         help='The email to use when querying PubMed '
                              'via BioPython.',
                         default='')
-    parser.add_argument('ndex_user', required=False,
+    parser.add_argument('--ndex_user', required=False,
                         help='The user name to use if uploading networks '
                              'to NDEx',
                         default=None)
-    parser.add_argument('ndex_password', required=False,
+    parser.add_argument('--ndex_password', required=False,
                         help='The password to use if uploading networks '
                              'to NDEx',
                         default=None)
