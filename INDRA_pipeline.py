@@ -205,11 +205,19 @@ if __name__ == '__main__':
         fname = os.path.join(chemical_folder, 'full_pmids_lists',
                              'pubmed_result_' + query + '.txt')
         with open(fname, 'r') as fh:
-            for line in fh.readlines():
-                pmid = line.strip()
-                paper_contents[pmid] = get_content(pmid)
+            pmids = [l.strip() for l in fh.readlines()]
+        for pmid in pmids:
+            paper_contents[pmid] = get_content(pmid)
+            # Store paper contents depending on content type
+            fname = os.path.join(chemical_folder, query, pmid)
+            if paper_contents[pmid][1] == 'abstract':
+                fname += '.txt'
+            else:
+                fname += '.xml'
+            if paper_contents[pmid][0]:
+                with open(fname, 'w') as fh:
+                    fh.write(paper_contents[pmid][0])
 
-        # Save the text of all retrieved articles in files (text)
         # Generate statements (REACH)
         for pmid, (content, content_type) in paper_contents.items():
             read_content(pmid, content, content_type, query)
