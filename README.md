@@ -6,13 +6,16 @@ To install dependencies, run
 ```
 pip install -r requirements.txt
 ```
-Then edit the script to set a `chemical`, as well as credentials for NDEx
-in case the networks are to be uploaded there. Then run the script as
+
+To set up Reach for reading locally, follow instructions [here](https://indra.readthedocs.io/en/latest/modules/sources/reach/index.html#indra-using-a-reach-jar-through-a-python-java-bridge-indra-sources-reach-reader).
+
+
+Then run the script as
 ```
 python INDRA_pipeline.py [chemical]
 ```
-The script takes the name of a chemical as its first argument and takes
-a number of other optional arguments as follows
+As seen above, the script takes the name of a chemical as its first argument
+and takes a number of other optional arguments as follows
 
 ```
 usage: INDRA_pipeline.py [-h] [--date_from DATE_FROM] [--date_to DATE_TO] [--entrez_email ENTREZ_EMAIL] [--ndex_user NDEX_USER] [--ndex_password NDEX_PASSWORD]
